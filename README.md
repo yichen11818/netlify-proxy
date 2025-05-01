@@ -53,7 +53,7 @@ https://fd-gally.netlify.app/gemini    # Google Gemini API
 
 更多 API 请参考配置文件。
 
-### 通用代理（部分网址不支持）
+### 通用代理（特殊网址可能不支持）
 
 代理任意 URL，支持两种格式：
 
