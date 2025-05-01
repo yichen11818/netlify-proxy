@@ -33,10 +33,10 @@
 访问以下路径即可使用预配置的网站：
 
 ```
-https://xxxx.netlify.app/hexo      # Hexo 博客
-https://xxxx.netlify.app/halo      # Halo 博客
-https://xxxx.netlify.app/kuma      # Kuma 监控面板
-https://xxxx.netlify.app/news      # 新闻聚合
+https://fd-gally.netlify.app/hexo      # Hexo 博客
+https://fd-gally.netlify.app/halo      # Halo 博客
+https://fd-gally.netlify.app/tv        # libre tv 影视站
+https://fd-gally.netlify.app/news      # 新闻聚合
 ```
 
 ### API 代理
@@ -44,9 +44,9 @@ https://xxxx.netlify.app/news      # 新闻聚合
 使用以下路径访问各种 AI 和第三方 API 服务：
 
 ```
-https://xxxx.netlify.app/openai    # OpenAI API
-https://xxxx.netlify.app/claude    # Claude/Anthropic API
-https://xxxx.netlify.app/gemini    # Google Gemini API
+https://fd-gally.netlify.app/openai    # OpenAI API
+https://fd-gally.netlify.app/claude    # Claude/Anthropic API
+https://fd-gally.netlify.app/gemini    # Google Gemini API
 ```
 
 更多 API 请参考配置文件。
