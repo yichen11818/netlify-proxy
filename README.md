@@ -110,15 +110,8 @@ https://xxxx.netlify.app/proxy/https%3A%2F%2Fexample.com%2Fpath
 ```typescript
 const PROXY_CONFIG = {
   "/新路径": "https://目标网站.com",
-  // ...
-};
-```
-如：
-const PROXY_CONFIG: { [key: string]: string } = {
-  "/site-a": "https://actual-website-a.com",
-  "/proxy-blog":   "https://some-external-blog.com",
   "/proxy-api":    "https://my-api-backend.dev",
-  "/new": "https://the-new-target.io",
+  // ...
 };
 ```
 
