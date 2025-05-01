@@ -2,12 +2,14 @@
 
 <div align="center">
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/your-netlify-id/deploy-status)](https://app.netlify.com/sites/your-netlify-name/deploys)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/6416e9cf-0327-f12b-0d7b-6cb/deploy-status)](https://app.netlify.com/sites/fd-gally/deploys)
 ![Edge Functions](https://img.shields.io/badge/Edge_Functions-00C7B7?style=flat-square&logo=netlify&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
 
 *一个基于 Netlify Edge Functions 的强大反向代理服务，支持任意网站内容代理和路径重写。*
+
+[🌍 在线使用](https://fd-gally.netlify.app) | [📝 源代码](https://github.com/gally16/netlify--)
 
 </div>
 
@@ -31,36 +33,34 @@
 访问以下路径即可使用预配置的网站：
 
 ```
-https://fd-gally.netlify.app/hexo      # Hexo 博客
-https://fd-gally.netlify.app/hexo2     # Hexo 博客 2
-https://fd-gally.netlify.app/halo      # Halo 博客
-https://fd-gally.netlify.app/kuma      # Kuma 监控面板
-https://fd-gally.netlify.app/tv        # TV 服务
-https://fd-gally.netlify.app/news      # 新闻聚合
+https://xxxx.netlify.app/hexo      # Hexo 博客
+https://xxxx.netlify.app/halo      # Halo 博客
+https://xxxx.netlify.app/kuma      # Kuma 监控面板
+https://xxxx.netlify.app/news      # 新闻聚合
 ```
 
 ### API 代理
 
-使用以下路径访问各种 API 服务：
+使用以下路径访问各种 AI 和第三方 API 服务：
 
 ```
-https://fd-gally.netlify.app/openai    # OpenAI API
-https://fd-gally.netlify.app/claude    # Claude/Anthropic API
-https://fd-gally.netlify.app/gemini    # Google Gemini API
+https://xxxx.netlify.app/openai    # OpenAI API
+https://xxxx.netlify.app/claude    # Claude/Anthropic API
+https://xxxx.netlify.app/gemini    # Google Gemini API
 ```
 
 更多 API 请参考配置文件。
 
-### 通用代理
+### 通用代理（部分网址不支持）
 
 代理任意 URL，支持两种格式：
 
 ```
 # 直接使用目标 URL
-https://fd-gally.netlify.app/proxy/https://example.com/path
+https://xxxx.netlify.app/proxy/https://example.com/path
 
 # URL 编码的形式
-https://fd-gally.netlify.app/proxy/https%3A%2F%2Fexample.com%2Fpath
+https://xxxx.netlify.app/proxy/https%3A%2F%2Fexample.com%2Fpath
 ```
 
 ---
@@ -71,6 +71,33 @@ https://fd-gally.netlify.app/proxy/https%3A%2F%2Fexample.com%2Fpath
 - 📘 **TypeScript** - 类型安全的代码实现
 - 🔍 **正则表达式** - 精确的资源路径重写
 - 📝 **DOM 修改** - 动态内容加载修复
+- 🔄 **资源缓存** - 智能缓存静态资源提升性能
+
+<details>
+<summary>详细架构图</summary>
+
+```
+┌─────────────┐       ┌───────────────────┐       ┌─────────────┐
+│             │       │                   │       │             │
+│   用户请求   │──────▶│  Netlify Edge     │──────▶│  目标服务器  │
+│             │       │  Function Proxy   │       │             │
+└─────────────┘       └───────────────────┘       └─────────────┘
+                               │
+                               ▼
+                      ┌─────────────────┐
+                      │                 │
+                      │  路径解析与匹配  │
+                      │                 │
+                      └─────────────────┘
+                               │
+                               ▼
+                      ┌─────────────────┐
+                      │                 │
+                      │  内容替换与修复  │
+                      │                 │
+                      └─────────────────┘
+```
+</details>
 
 ---
 
@@ -84,6 +111,14 @@ https://fd-gally.netlify.app/proxy/https%3A%2F%2Fexample.com%2Fpath
 const PROXY_CONFIG = {
   "/新路径": "https://目标网站.com",
   // ...
+};
+```
+如：
+const PROXY_CONFIG: { [key: string]: string } = {
+  "/site-a": "https://actual-website-a.com",
+  "/proxy-blog":   "https://some-external-blog.com",
+  "/proxy-api":    "https://my-api-backend.dev",
+  "/new": "https://the-new-target.io",
 };
 ```
 
@@ -104,16 +139,26 @@ const SPECIAL_REPLACEMENTS = {
 
 ## 📋 部署指南
 
-1. Fork 本项目
-2. 注册 Netlify 账号
-3. 创建新站点并连接 GitHub 仓库
+### 方法一：一键部署
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/gally16/netlify--)
+
+### 方法二：手动部署
+
+1. Fork [本项目](https://github.com/gally16/netlify--)
+2. 注册 [Netlify](https://netlify.com) 账号
+3. 在 Netlify 中创建新站点并连接 GitHub 仓库
 4. 使用默认设置部署
+
+### 配置说明
+
+部署完成后，根据需要修改 `netlify/edge-functions/proxy-handler.ts` 文件中的配置。
 
 ---
 
 ## 🌟 高级用例
 
-- 🚫 **内容过滤** - 添加代码移除目标站点的广告
+- 🚫 **内容过滤** - 添加代码移除目标站点的广告和追踪器
 - 🔗 **API 聚合** - 在一个域名下整合多个 API 服务
 - 🔒 **地区解锁** - 通过 Edge Functions 全球网络访问地区限制内容
 
@@ -124,12 +169,13 @@ const SPECIAL_REPLACEMENTS = {
 - 请遵守目标网站的服务条款
 - 避免代理敏感或受版权保护的内容
 - 某些复杂网站可能需要额外配置才能正常工作
+- 大流量使用可能受到 Netlify 免费计划的限制
 
 ---
 
 ## 📄 许可证
 
-MIT License © 2025
+[MIT License](LICENSE) © 2025
 
 <div align="center">
   <sub>Made with ❤️ by <a href="https://github.com/gally16">gally16</a></sub>
