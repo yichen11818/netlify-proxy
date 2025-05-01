@@ -152,6 +152,110 @@ export default async (request: Request, context: Context) => {
   const url = new URL(request.url);
   const path = url.pathname;
 
+  // 特殊处理 /proxy/ 路径 - 用于代理任意URL
+  if (path.startsWith('/proxy/')) {
+    try {
+      // 从路径中提取目标URL
+      let targetUrlString = path.substring('/proxy/'.length);
+      
+      // 解码URL（如果已编码）
+      if (targetUrlString.startsWith('http%3A%2F%2F') || targetUrlString.startsWith('https%3A%2F%2F')) {
+        targetUrlString = decodeURIComponent(targetUrlString);
+      }
+      
+      // 确保URL以http://或https://开头
+      if (!targetUrlString.startsWith('http://') && !targetUrlString.startsWith('https://')) {
+        targetUrlString = 'https://' + targetUrlString;
+      }
+      
+      const targetUrl = new URL(targetUrlString);
+      
+      // 继承原始请求的查询参数
+      if (url.search && !targetUrlString.includes('?')) {
+        targetUrl.search = url.search;
+      }
+      
+      context.log(`Proxying generic request to: ${targetUrl.toString()}`);
+      
+      // 重要：创建一个新的 Request 对象以避免潜在问题
+      const proxyRequest = new Request(targetUrl.toString(), {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+        redirect: 'manual', // 防止 fetch 自动处理重定向
+      });
+      
+      // 设置 Host 头以匹配目标主机
+      proxyRequest.headers.set("Host", targetUrl.host);
+      
+      // 添加常用代理头
+      const clientIp = context.ip || request.headers.get('x-nf-client-connection-ip') || "";
+      proxyRequest.headers.set('X-Forwarded-For', clientIp);
+      proxyRequest.headers.set('X-Forwarded-Host', url.host);
+      proxyRequest.headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
+      
+      // 确保 accept-encoding 不会导致压缩响应
+      proxyRequest.headers.delete('accept-encoding');
+      
+      // 保留原始 referer，但用目标域名
+      const referer = request.headers.get('referer');
+      if (referer) {
+        try {
+          const refUrl = new URL(referer);
+          const newReferer = `${targetUrl.protocol}//${targetUrl.host}${refUrl.pathname}${refUrl.search}`;
+          proxyRequest.headers.set('referer', newReferer);
+        } catch(e) {
+          // 如果解析 referer 出错，保持原样
+        }
+      } else {
+        // 如果没有 referer，添加一个目标域名的 referer
+        proxyRequest.headers.set('referer', `${targetUrl.protocol}//${targetUrl.host}/`);
+      }
+      
+      // 发起代理请求
+      const response = await fetch(proxyRequest);
+      
+      // 创建新的响应对象
+      let newResponse = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      });
+      
+      // 添加 CORS 头
+      newResponse.headers.set('Access-Control-Allow-Origin', '*');
+      newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Range');
+      
+      // 移除可能导致问题的安全头部
+      newResponse.headers.delete('Content-Security-Policy');
+      newResponse.headers.delete('Content-Security-Policy-Report-Only');
+      newResponse.headers.delete('X-Frame-Options');
+      newResponse.headers.delete('X-Content-Type-Options');
+      
+      // 处理重定向
+      if (response.status >= 300 && response.status < 400 && response.headers.has('location')) {
+        const location = response.headers.get('location')!;
+        const redirectedUrl = new URL(location, targetUrl);
+        
+        // 将重定向URL也通过代理
+        const newLocation = `${url.origin}/proxy/${encodeURIComponent(redirectedUrl.toString())}`;
+        newResponse.headers.set('Location', newLocation);
+      }
+      
+      return newResponse;
+    } catch (error) {
+      context.log(`Error proxying generic URL: ${error}`);
+      return new Response(`代理请求失败: ${error}`, { 
+        status: 502,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'text/plain;charset=UTF-8'
+        }
+      });
+    }
+  }
+
   // 查找匹配的代理配置
   let targetBaseUrl: string | null = null;
   let matchedPrefix: string | null = null;
