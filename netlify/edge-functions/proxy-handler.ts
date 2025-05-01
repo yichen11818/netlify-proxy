@@ -3,7 +3,7 @@ import type { Context } from "@netlify/edge-functions";
 
 // 定义你的代理规则：路径前缀 => 目标基础 URL
 const PROXY_CONFIG = {
-#api // 目标 API 服务器//
+  // API 服务器
   "/discord": "https://discord.com/api",
   "/telegram": "https://api.telegram.org",
   "/openai": "https://api.openai.com",
@@ -19,14 +19,14 @@ const PROXY_CONFIG = {
   "/portkey": "https://api.portkey.ai",
   "/fireworks": "https://api.fireworks.ai",
   "/openrouter": "https://openrouter.ai/api",
-#任意网址 // 目标博客网站（可能带有子路径）
-  "/hexo": "https://hexo-gally.vercel.app", // 目标博客网站（可能带有子路径）
-  "/hexo2": "https://hexo-987.pages.dev", // 另一个外部应用
+  // 任意网址
+  "/hexo": "https://hexo-gally.vercel.app", 
+  "/hexo2": "https://hexo-987.pages.dev",
   "/halo": "https://blog.gally.dpdns.org",
   "/kuma": "https://kuma.gally.dpdns.org",
   "/hf": "https://huggingface.co",
   "/tv": "https://tv.gally.ddns-ip.net",
-  "/news": "https://newsnow-ahm.pages.dev",
+  "/news": "https://newsnow-ahm.pages.dev"
 };
 
 export default async (request: Request, context: Context) => {
