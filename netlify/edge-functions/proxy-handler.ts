@@ -42,6 +42,70 @@ const CSS_CONTENT_TYPES = [
   'text/css'
 ];
 
+// JavaScript 内容类型
+const JS_CONTENT_TYPES = [
+  'application/javascript',
+  'text/javascript',
+  'application/x-javascript'
+];
+
+// 特定网站的替换规则 (针对某些站点的特殊处理)
+const SPECIAL_REPLACEMENTS: Record<string, Array<{pattern: RegExp, replacement: Function}>> = {
+  // hexo 博客特殊处理
+  'hexo-gally.vercel.app': [
+    // 替换所有 /css/, /js/, /images/ 等资源路径
+    {
+      pattern: /(?:src|href|content)=['"](?:\.?\/)?([^"']*\.(css|js|png|jpg|jpeg|gif|svg|webp|ico))["']/gi,
+      replacement: (match: string, path: string, ext: string) => {
+        // 如果路径已经以 http 开头，不处理
+        if (path.startsWith('http')) return match;
+        // 如果路径已经以 / 开头，添加前缀
+        if (path.startsWith('/')) {
+          return match.replace(`"/${path.slice(1)}`, `"/hexo/${path.slice(1)}`);
+        }
+        // 相对路径
+        return match.replace(`"${path}`, `"/hexo/${path}`);
+      }
+    },
+    // 处理内联 CSS 中的 url()
+    {
+      pattern: /url\(['"]?(?:\.?\/)?([^'")]*\.(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot))['"]?\)/gi,
+      replacement: (match: string, path: string) => {
+        if (path.startsWith('http')) return match;
+        if (path.startsWith('/')) {
+          return match.replace(`(/${path.slice(1)}`, `(/hexo/${path.slice(1)}`);
+        }
+        return match.replace(`(${path}`, `(/hexo/${path}`);
+      }
+    }
+  ],
+  // TV 站点特殊处理
+  'tv.gally.ddns-ip.net': [
+    // 替换所有资源路径
+    {
+      pattern: /(?:src|href|content)=['"](?:\.?\/)?([^"']*\.(css|js|png|jpg|jpeg|gif|svg|webp|ico))["']/gi,
+      replacement: (match: string, path: string, ext: string) => {
+        if (path.startsWith('http')) return match;
+        if (path.startsWith('/')) {
+          return match.replace(`"/${path.slice(1)}`, `"/tv/${path.slice(1)}`);
+        }
+        return match.replace(`"${path}`, `"/tv/${path}`);
+      }
+    },
+    // 处理内联 CSS 中的 url()
+    {
+      pattern: /url\(['"]?(?:\.?\/)?([^'")]*\.(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot))['"]?\)/gi,
+      replacement: (match: string, path: string) => {
+        if (path.startsWith('http')) return match;
+        if (path.startsWith('/')) {
+          return match.replace(`(/${path.slice(1)}`, `(/tv/${path.slice(1)}`);
+        }
+        return match.replace(`(${path}`, `(/tv/${path}`);
+      }
+    }
+  ]
+};
+
 export default async (request: Request, context: Context) => {
   // 处理 CORS 预检请求 (OPTIONS)
   if (request.method === "OPTIONS") {
@@ -50,7 +114,7 @@ export default async (request: Request, context: Context) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin, Range",
         "Access-Control-Max-Age": "86400", // 24小时缓存预检响应
         "Cache-Control": "public, max-age=86400"
       }
@@ -109,6 +173,21 @@ export default async (request: Request, context: Context) => {
       // 确保 accept-encoding 不会导致压缩响应，这样我们才能修改内容
       proxyRequest.headers.delete('accept-encoding');
       
+      // 保留原始 referer (如果存在)，但修正域名 - 这对于防止某些网站的防盗链很重要
+      const referer = request.headers.get('referer');
+      if (referer) {
+        try {
+          const refUrl = new URL(referer);
+          const newReferer = `${targetUrl.protocol}//${targetUrl.host}${refUrl.pathname}${refUrl.search}`;
+          proxyRequest.headers.set('referer', newReferer);
+        } catch(e) {
+          // 如果解析 referer 出错，保持原样
+        }
+      } else {
+        // 如果没有 referer，添加一个目标域名的 referer
+        proxyRequest.headers.set('referer', `${targetUrl.protocol}//${targetUrl.host}/`);
+      }
+      
       // 发起代理请求
       const response = await fetch(proxyRequest);
       
@@ -118,10 +197,12 @@ export default async (request: Request, context: Context) => {
       // 创建新的响应对象，以便我们可以修改头部
       let newResponse: Response;
       
-      // 对于 HTML 和 CSS 内容，我们需要修改文件内容中的 URL 引用
-      if (HTML_CONTENT_TYPES.some(type => contentType.includes(type)) || 
-          CSS_CONTENT_TYPES.some(type => contentType.includes(type))) {
-        
+      // 处理需要内容替换的资源类型
+      const needsRewrite = HTML_CONTENT_TYPES.some(type => contentType.includes(type)) || 
+                           CSS_CONTENT_TYPES.some(type => contentType.includes(type)) ||
+                           JS_CONTENT_TYPES.some(type => contentType.includes(type));
+                           
+      if (needsRewrite) {
         // 克隆响应以获取其内容
         const clonedResponse = response.clone();
         let content = await clonedResponse.text();
@@ -137,19 +218,19 @@ export default async (request: Request, context: Context) => {
           
           // 1. 替换以协议开头的绝对路径 (http:// 或 https://)
           content = content.replace(
-            new RegExp(`(href|src|action)=["']https?://${targetDomain}(/[^"']*?)["']`, 'gi'),
+            new RegExp(`(href|src|action|content)=["']https?://${targetDomain}(/[^"']*?)["']`, 'gi'),
             `$1="${url.origin}${matchedPrefix}$2"`
           );
           
           // 2. 替换以 // 开头的协议相对路径
           content = content.replace(
-            new RegExp(`(href|src|action)=["']//${targetDomain}(/[^"']*?)["']`, 'gi'),
+            new RegExp(`(href|src|action|content)=["']//${targetDomain}(/[^"']*?)["']`, 'gi'),
             `$1="${url.origin}${matchedPrefix}$2"`
           );
           
           // 3. 替换以根目录 / 开头的路径
           content = content.replace(
-            new RegExp(`(href|src|action)=["'](/[^"']*?)["']`, 'gi'),
+            new RegExp(`(href|src|action|content)=["'](/[^"']*?)["']`, 'gi'),
             `$1="${url.origin}${matchedPrefix}$2"`
           );
           
@@ -178,11 +259,21 @@ export default async (request: Request, context: Context) => {
           );
           
           // 8. 处理相对路径的修正 (不以 / 或 http:// 开头的)
-          // 对于这些路径，我们需要考虑当前请求路径的目录层级
+          // 这里使用更精确的正则表达式，处理常见标签属性中的相对路径
+          content = content.replace(
+            /(href|src|action|data-src|data-href)=["']((?!https?:\/\/|\/\/|\/)[^"']+)["']/gi,
+            `$1="${url.origin}${matchedPrefix}/${targetPathBase}$2"`
+          );
           
           // 9. 处理可能的 JSON 资源路径
           content = content.replace(
-            new RegExp(`"(url|path|endpoint)"\\s*:\\s*"https?://${targetDomain}(/[^"]*?)"`, 'gi'),
+            new RegExp(`"(url|path|endpoint|src|href)"\\s*:\\s*"https?://${targetDomain}(/[^"]*?)"`, 'gi'),
+            `"$1":"${url.origin}${matchedPrefix}$2"`
+          );
+          
+          // 9.1 处理 JSON 路径中的根路径引用
+          content = content.replace(
+            /"(url|path|endpoint|src|href)"\s*:\s*"(\/[^"]*?)"/gi,
             `"$1":"${url.origin}${matchedPrefix}$2"`
           );
           
@@ -191,6 +282,112 @@ export default async (request: Request, context: Context) => {
             new RegExp(`['"]https?://${targetDomain}(/[^"']*?)['"]`, 'gi'),
             `"${url.origin}${matchedPrefix}$1"`
           );
+          
+          // 11. 处理 JavaScript 中的根路径引用
+          content = content.replace(
+            /([^a-zA-Z0-9_])(['"])(\/[^\/'"]+\/[^'"]*?)(['"])/g,
+            `$1$2${url.origin}${matchedPrefix}$3$4`
+          );
+          
+          // 12. 处理 srcset 属性
+          content = content.replace(
+            /srcset=["']([^"']+)["']/gi,
+            (match, srcset) => {
+              // 处理 srcset 中的每个 URL
+              const newSrcset = srcset.split(',').map((src: string) => {
+                const [srcUrl, descriptor] = src.trim().split(/\s+/);
+                let newUrl = srcUrl;
+                
+                if (srcUrl.startsWith('http://') || srcUrl.startsWith('https://')) {
+                  if (srcUrl.includes(targetDomain)) {
+                    newUrl = srcUrl.replace(
+                      new RegExp(`https?://${targetDomain}(/[^\\s]*)`, 'i'),
+                      `${url.origin}${matchedPrefix}$1`
+                    );
+                  }
+                } else if (srcUrl.startsWith('//')) {
+                  if (srcUrl.includes(targetDomain)) {
+                    newUrl = srcUrl.replace(
+                      new RegExp(`//${targetDomain}(/[^\\s]*)`, 'i'),
+                      `${url.origin}${matchedPrefix}$1`
+                    );
+                  }
+                } else if (srcUrl.startsWith('/')) {
+                  newUrl = `${url.origin}${matchedPrefix}${srcUrl}`;
+                }
+                
+                return descriptor ? `${newUrl} ${descriptor}` : newUrl;
+              }).join(', ');
+              
+              return `srcset="${newSrcset}"`;
+            }
+          );
+          
+          // 应用特定网站的替换规则
+          if (SPECIAL_REPLACEMENTS[targetDomain as keyof typeof SPECIAL_REPLACEMENTS]) {
+            const replacements = SPECIAL_REPLACEMENTS[targetDomain as keyof typeof SPECIAL_REPLACEMENTS];
+            for (const replacement of replacements) {
+              content = content.replace(replacement.pattern, replacement.replacement as any);
+            }
+          }
+          
+          // 在页面底部添加修复脚本，用于动态加载的内容
+          const fixScript = `
+          <script>
+          // 修复动态加载的资源路径
+          (function() {
+            const observer = new MutationObserver(function(mutations) {
+              mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList') {
+                  mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) { // 元素节点
+                      // 修复 <script>, <link>, <img>, <a> 等标签的路径
+                      const elements = node.querySelectorAll('script[src], link[href], img[src], a[href], [data-src], [data-href]');
+                      elements.forEach(function(el) {
+                        ['src', 'href', 'data-src', 'data-href'].forEach(function(attr) {
+                          if (el.hasAttribute(attr)) {
+                            let val = el.getAttribute(attr);
+                            if (val && !val.match(/^(https?:|\/\/|${url.origin})/)) {
+                              if (val.startsWith('/')) {
+                                el.setAttribute(attr, '${url.origin}${matchedPrefix}' + val);
+                              }
+                            }
+                          }
+                        });
+                      });
+                      
+                      // 修复内联样式中的 url()
+                      const elementsWithStyle = node.querySelectorAll('[style*="url("]');
+                      elementsWithStyle.forEach(function(el) {
+                        let style = el.getAttribute('style');
+                        if (style) {
+                          style = style.replace(/url\\(['"]?(\\/[^)'"]*?)['"]?\\)/gi, 
+                                               'url(${url.origin}${matchedPrefix}$1)');
+                          el.setAttribute('style', style);
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            });
+            
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+          })();
+          </script>
+          `;
+          
+          // 在 </body> 前插入修复脚本
+          const bodyCloseTagPos = content.lastIndexOf('</body>');
+          if (bodyCloseTagPos !== -1) {
+            content = content.substring(0, bodyCloseTagPos) + fixScript + content.substring(bodyCloseTagPos);
+          } else {
+            // 如果没有 </body> 标签，直接添加到末尾
+            content += fixScript;
+          }
         }
         
         // 对于 CSS 文件，修复 URL 引用
@@ -212,6 +409,37 @@ export default async (request: Request, context: Context) => {
             new RegExp(`url\\(['"]?(/[^)'"]*?)['"]?\\)`, 'gi'),
             `url(${url.origin}${matchedPrefix}$1)`
           );
+          
+          // 4. 处理相对路径 (不以 / 开头)
+          // 这里我们假设相对路径是相对于 CSS 文件的位置
+          const cssPath = targetUrl.pathname;
+          const cssDir = cssPath.substring(0, cssPath.lastIndexOf('/') + 1);
+          
+          content = content.replace(
+            /url\(['"]?(?!https?:\/\/|\/\/|\/|data:|#)([^)'"]*)['"]?\)/gi,
+            `url(${url.origin}${matchedPrefix}${cssDir}$1)`
+          );
+        }
+        
+        // 对于 JavaScript 文件，处理可能的 URL 引用
+        if (JS_CONTENT_TYPES.some(type => contentType.includes(type))) {
+          // 1. 替换绝对 URL
+          content = content.replace(
+            new RegExp(`(['"])https?://${targetDomain}(/[^'"]*?)(['"])`, 'gi'),
+            `$1${url.origin}${matchedPrefix}$2$3`
+          );
+          
+          // 2. 替换协议相对 URL
+          content = content.replace(
+            new RegExp(`(['"])//${targetDomain}(/[^'"]*?)(['"])`, 'gi'),
+            `$1${url.origin}${matchedPrefix}$2$3`
+          );
+          
+          // 3. 替换根路径 URL
+          content = content.replace(
+            /(['"])(\/[^'"]*?\.(?:js|css|png|jpg|jpeg|gif|svg|webp|ico|mp3|mp4|webm|ogg|woff|woff2|ttf|eot))(['"])/gi,
+            `$1${url.origin}${matchedPrefix}$2$3`
+          );
         }
         
         // 创建新的响应对象，包含修改后的内容
@@ -221,7 +449,7 @@ export default async (request: Request, context: Context) => {
           headers: response.headers
         });
       } else {
-        // 对于非 HTML/CSS 内容，直接使用原始响应体
+        // 对于非 HTML/CSS/JS 内容，直接使用原始响应体
         newResponse = new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
@@ -232,10 +460,11 @@ export default async (request: Request, context: Context) => {
       // 添加 CORS 头
       newResponse.headers.set('Access-Control-Allow-Origin', '*');
       newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-      newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Range');
       
       // 移除可能导致问题的安全头部
       newResponse.headers.delete('Content-Security-Policy');
+      newResponse.headers.delete('Content-Security-Policy-Report-Only');
       newResponse.headers.delete('X-Frame-Options');
       newResponse.headers.delete('X-Content-Type-Options');
       
@@ -244,6 +473,9 @@ export default async (request: Request, context: Context) => {
         newResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         newResponse.headers.set('Pragma', 'no-cache');
         newResponse.headers.set('Expires', '0');
+      } else {
+        // 对于静态资源，设置较长的缓存时间
+        newResponse.headers.set('Cache-Control', 'public, max-age=86400'); // 1天
       }
       
       // 如果目标服务器返回重定向，需要构造正确的重定向URL
@@ -277,6 +509,5 @@ export default async (request: Request, context: Context) => {
   }
 
   // 如果没有匹配的代理规则，则不处理此请求，交由 Netlify 的其他规则处理
-  // context.log(`No proxy rule matched for "${path}". Passing through.`);
-  return; // 或者 return undefined;
+  return;
 }; 
