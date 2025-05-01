@@ -9,7 +9,7 @@
 
 *一个基于 Netlify Edge Functions 的强大反向代理服务，支持任意网站内容代理和路径重写。*
 
-[🌍 在线使用](https://fd-gally.netlify.app) | [📝 源代码](https://github.com/gally16/netlify--)
+[🌍 在线使用](https://fd-gally.netlify.app) | [📝 源代码](https://github.com/gally16/netlify-proxy)
 
 </div>
 
@@ -134,11 +134,11 @@ const SPECIAL_REPLACEMENTS = {
 
 ### 方法一：一键部署
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/gally16/netlify--)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/gally16/netlify-proxy)
 
 ### 方法二：手动部署
 
-1. Fork [本项目](https://github.com/gally16/netlify--)
+1. Fork [本项目](https://github.com/gally16/netlify-proxy)
 2. 注册 [Netlify](https://netlify.com) 账号
 3. 在 Netlify 中创建新站点并连接 GitHub 仓库
 4. 使用默认设置部署
