@@ -51,7 +51,7 @@ const JS_CONTENT_TYPES = [
 
 // 特定网站的替换规则 (针对某些站点的特殊处理)
 const SPECIAL_REPLACEMENTS: Record<string, Array<{pattern: RegExp, replacement: Function}>> = {
-  // hexo 博客特殊处理
+  // hexo 博客特殊处理 (Vercel 部署)
   'hexo-gally.vercel.app': [
     // 替换所有 /css/, /js/, /images/ 等资源路径
     {
@@ -76,6 +76,34 @@ const SPECIAL_REPLACEMENTS: Record<string, Array<{pattern: RegExp, replacement: 
           return match.replace(`(/${path.slice(1)}`, `(/hexo/${path.slice(1)}`);
         }
         return match.replace(`(${path}`, `(/hexo/${path}`);
+      }
+    },
+    // 处理 Vercel 特殊部署路径，如 /_next/ 资源
+    {
+      pattern: /(src|href)=["']((?:\/_next\/)[^"']*)["']/gi,
+      replacement: (match: string, attr: string, path: string) => {
+        return `${attr}="/hexo${path}"`;
+      }
+    },
+    // 处理 Vercel 动态导入的 chunk
+    {
+      pattern: /"(\/_next\/static\/chunks\/[^"]+)"/gi,
+      replacement: (match: string, path: string) => {
+        return `"/hexo${path}"`;
+      }
+    },
+    // 处理可能的 Next.js API 路径
+    {
+      pattern: /"(\/api\/[^"]+)"/gi,
+      replacement: (match: string, path: string) => {
+        return `"/hexo${path}"`;
+      }
+    },
+    // 修复 Next.js data-script
+    {
+      pattern: /data-href=["']((?:\/_next\/)[^"']*)["']/gi,
+      replacement: (match: string, path: string) => {
+        return `data-href="/hexo${path}"`;
       }
     }
   ],
@@ -336,6 +364,60 @@ export default async (request: Request, context: Context) => {
           <script>
           // 修复动态加载的资源路径
           (function() {
+            // 特殊处理 Vercel 的 Next.js 动态加载
+            if (window.location.pathname.startsWith('/hexo')) {
+              // 拦截 fetch 请求
+              const originalFetch = window.fetch;
+              window.fetch = function(resource, init) {
+                if (typeof resource === 'string') {
+                  // 对于 next-data 请求特殊处理
+                  if (resource.includes('/_next/data/') && !resource.startsWith('/hexo')) {
+                    resource = '/hexo' + resource;
+                  }
+                  // 其他 API 请求
+                  if (resource.startsWith('/api/') && !resource.startsWith('/hexo')) {
+                    resource = '/hexo' + resource;
+                  }
+                }
+                return originalFetch.call(this, resource, init);
+              };
+
+              // 处理 Next.js 的路由变化
+              const observer = new MutationObserver(function(mutations) {
+                // 查找并修复 next/script 加载的脚本
+                document.querySelectorAll('script[src^="/_next/"]').forEach(function(el) {
+                  const src = el.getAttribute('src');
+                  if (src && !src.startsWith('/hexo')) {
+                    el.setAttribute('src', '/hexo' + src);
+                  }
+                });
+                
+                // 修复 next/link 预加载
+                document.querySelectorAll('link[rel="preload"][href^="/_next/"]').forEach(function(el) {
+                  const href = el.getAttribute('href');
+                  if (href && !href.startsWith('/hexo')) {
+                    el.setAttribute('href', '/hexo' + href);
+                  }
+                });
+              });
+
+              // 确保页面加载完成后再添加观察器
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                  observer.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true
+                  });
+                });
+              } else {
+                observer.observe(document.documentElement, {
+                  childList: true,
+                  subtree: true
+                });
+              }
+            }
+
+            // 通用修复处理
             const observer = new MutationObserver(function(mutations) {
               mutations.forEach(function(mutation) {
                 if (mutation.type === 'childList') {
@@ -349,7 +431,11 @@ export default async (request: Request, context: Context) => {
                             let val = el.getAttribute(attr);
                             if (val && !val.match(/^(https?:|\/\/|${url.origin})/)) {
                               if (val.startsWith('/')) {
-                                el.setAttribute(attr, '${url.origin}${matchedPrefix}' + val);
+                                if (window.location.pathname.startsWith('/hexo') && val.startsWith('/_next/') && !val.startsWith('/hexo')) {
+                                  el.setAttribute(attr, '/hexo' + val);
+                                } else {
+                                  el.setAttribute(attr, '${url.origin}${matchedPrefix}' + val);
+                                }
                               }
                             }
                           }
