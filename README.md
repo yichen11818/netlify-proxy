@@ -33,6 +33,7 @@
 访问以下路径即可使用预配置的网站：
 
 ```
+https://fd-gallynetlify.app/hexo       # Hexo 博客
 https://fd-gally.netlify.app/halo      # Halo 博客
 https://fd-gally.netlify.app/tv        # libre tv 影视站
 https://fd-gally.netlify.app/news      # 新闻聚合
