@@ -167,6 +167,15 @@ const SPECIAL_REPLACEMENTS = {
 - 大流量使用可能受到 Netlify 免费计划的限制
 
 ---
+## Star History
+
+<a href="https://www.star-history.com/#gally16/netlify-proxy&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=gally16/netlify-proxy&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=gally16/netlify-proxy&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=gally16/netlify-proxy&type=Date" />
+ </picture>
+</a>
 
 ## 📄 许可证
 
