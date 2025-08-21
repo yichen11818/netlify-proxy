@@ -4,8 +4,7 @@ import type { Context } from "@netlify/edge-functions";
 // 定义你的代理规则：路径前缀 => 目标基础 URL
 const PROXY_CONFIG = {
   // API 服务器
-  "/WsRL84Cyay.txt":"https://test.yumi.chat/WsRL84Cyay.txt",
-  "/WsRL84Cyay":"https://test.yumi.chat/WsRL84Cyay.txt",
+
   "/web": "https://weread.qq.com/web",
   "/discord": "https://discord.com/api",
   "/telegram": "https://api.telegram.org",
@@ -258,7 +257,15 @@ export default async (request: Request, context: Context) => {
       });
     }
   }
-
+  if (path.startsWith('/WsRL84Cyay.txt')) {
+    return new Response("69b05520d1e461d133d27614fdf3c33d", {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'text/plain;charset=UTF-8'
+      }
+    });
+  }
   // 查找匹配的代理配置
   let targetBaseUrl: string | null = null;
   let matchedPrefix: string | null = null;
